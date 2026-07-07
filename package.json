@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "dev": "node src/index.js"
+    "dev": "node src/index.js",
+    "migrate": "node scripts/migrate.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
