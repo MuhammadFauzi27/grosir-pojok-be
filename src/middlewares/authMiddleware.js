@@ -1,27 +1,30 @@
-import jwt from "../utils/jwt.js"
+import jwtUtil from '../utils/jwt.js';
 
+/**
+ * Middleware autentikasi JWT.
+ * Membaca Authorization header (Bearer token), memverifikasi token,
+ * dan menyimpan payload (id_pegawai, role) ke req.user.
+ */
 const authMiddleware = async (req, res, next) => {
-  const { authorization } = req.headers
+  const { authorization } = req.headers;
 
-  if (!authorization.startsWith('Bearer ')) {
-    res.status(401).json({
-      success: false,
-      code: 401,
-      message: "Unauthorized"
-    })
+  if (!authorization || !authorization.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error  : 'Unauthorized',
+      message: 'Token tidak ditemukan atau format tidak valid',
+    });
   }
 
-  const token = authorization.split(' ')[1]
+  const token = authorization.split(' ')[1];
   try {
-    req.user = jwt.verifyToken(token)
-    next()
+    req.user = jwtUtil.verifyToken(token);
+    next();
   } catch (err) {
-    res.status(401).json({
-      success: false,
-      code: 401,
-      message: "Unauthorized"
-    })
+    return res.status(401).json({
+      error  : 'Unauthorized',
+      message: 'Token tidak valid atau sudah kedaluwarsa',
+    });
   }
-}
+};
 
-export default authMiddleware
+export default authMiddleware;
