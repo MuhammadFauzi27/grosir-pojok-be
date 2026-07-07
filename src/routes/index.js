@@ -1,5 +1,13 @@
-import { Router } from 'express'
+import express from 'express';
+import { getBarang, getSatuanByBarang } from '../controllers/barangController.js';
+import { catatPenjualan } from '../controllers/penjualanController.js';
+import { getStokRealtime } from '../controllers/stokController.js';
 
-const routes = Router()
+const router = express.Router();
 
-export default routes
+router.get('/barang', getBarang);
+router.get('/barang/:id_barang/satuan', getSatuanByBarang);
+router.post('/penjualan', catatPenjualan);
+router.get('/stok', getStokRealtime);
+
+export default router;
