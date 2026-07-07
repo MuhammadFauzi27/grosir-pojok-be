@@ -13,7 +13,7 @@ info:
     dokumen SKPL-001.
   version: 1.0.0
 servers:
-  - url: https://api.grosirpojok.example.com/v1
+  - url: https://api.grosirpojok.com/
     description: Production (cloud)
   - url: http://localhost:3000/v1
     description: Local development
@@ -21,8 +21,6 @@ servers:
 tags:
   - name: Auth
     description: Autentikasi & manajemen sesi pengguna (Kasir / Gudang)
-  - name: Pegawai
-    description: Data pengguna sistem (kasir dan pegawai gudang)
   - name: Barang
     description: Master data barang grosir
   - name: Satuan Barang
@@ -92,109 +90,6 @@ paths:
           description: Logout berhasil, tidak ada konten
         '401':
           description: Token tidak valid / sudah kedaluwarsa
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  # ============================================================
-  # PEGAWAI
-  # ============================================================
-  /pegawai:
-    get:
-      tags: [Pegawai]
-      summary: Daftar seluruh pegawai
-      description: Hanya dapat diakses oleh role gudang (admin operasional).
-      parameters:
-        - name: role
-          in: query
-          schema:
-            type: string
-            enum: [kasir, gudang]
-          description: Filter berdasarkan role
-      responses:
-        '200':
-          description: Daftar pegawai
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Pegawai'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    post:
-      tags: [Pegawai]
-      summary: Tambah pegawai baru
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PegawaiInput'
-      responses:
-        '201':
-          description: Pegawai berhasil dibuat
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pegawai'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          description: Username sudah digunakan
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /pegawai/{id_pegawai}:
-    parameters:
-      - name: id_pegawai
-        in: path
-        required: true
-        schema:
-          type: integer
-    get:
-      tags: [Pegawai]
-      summary: Detail satu pegawai
-      responses:
-        '200':
-          description: Detail pegawai
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pegawai'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      tags: [Pegawai]
-      summary: Perbarui data pegawai
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PegawaiInput'
-      responses:
-        '200':
-          description: Pegawai berhasil diperbarui
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Pegawai'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags: [Pegawai]
-      summary: Hapus pegawai
-      responses:
-        '204':
-          description: Pegawai berhasil dihapus
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Tidak dapat dihapus karena masih memiliki riwayat transaksi (FK RESTRICT)
           content:
             application/json:
               schema:
