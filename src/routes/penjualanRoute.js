@@ -5,7 +5,7 @@ import {
   catatPenjualan,
   getDetailPenjualan,
   getNotaPenjualan,
-} from '../controllers/penjualan.controller.js';
+} from '../controllers/penjualanController.js';
 
 const router = express.Router();
 

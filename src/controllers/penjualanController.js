@@ -1,45 +1,62 @@
-import { supabase } from '../config/supabase.js';
+import * as penjualanService from '../services/penjualanService.js';
+import ResponseError from '../exceptions/responseError.js';
 
-// POST /penjualan
-export const catatPenjualan = async (req, res) => {
-    const { id_pegawai, items } = req.body;
-    let insertedNota = null;
+// ─── GET /penjualan ────────────────────────────────────────────────────────────
+export const getPenjualan = async (req, res, next) => {
+  try {
+    const data = await penjualanService.getAllPenjualan(req.query);
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
 
-    try {
-        // 1. Bikin Header Penjualan dulu
-        // no_nota_jual bisa di-generate otomatis oleh DB atau dari Express
-        const { data: headerData, error: headerError } = await supabase
-            .from('penjualan')
-            .insert([{ id_pegawai }])
-            .select()
-            .single();
+// ─── POST /penjualan ───────────────────────────────────────────────────────────
+export const catatPenjualan = async (req, res, next) => {
+  try {
+    const { no_nota_jual, id_pegawai, items } = req.body;
 
-        if (headerError) throw headerError;
-        insertedNota = headerData.no_nota_jual;
-
-        // 2. Siapkan data detail untuk di-insert sekaligus (Bulk Insert)
-        const detailPenjualan = items.map(item => ({
-            no_nota_jual: insertedNota,
-            id_satuan: item.id_satuan,
-            jumlah_jual: item.jumlah_jual
-            // subtotal_jual dihitung otomatis di DB atau disiapkan di sini jika pakai logic Express
-        }));
-
-        // 3. Insert Detail (Ini yang akan men-trigger pemotongan stok di PostgreSQL)
-        const { error: detailError } = await supabase
-            .from('detail_penjualan')
-            .insert(detailPenjualan);
-
-        // Jika stok tidak cukup, trigger DB akan melempar error di tahap ini
-        if (detailError) throw detailError;
-
-        res.status(201).json({ message: "Transaksi berhasil", no_nota: insertedNota });
-
-    } catch (error) {
-        // MANUAL ROLLBACK: Jika insert detail gagal (misal stok kurang), hapus headernya!
-        if (insertedNota) {
-            await supabase.from('penjualan').delete().eq('no_nota_jual', insertedNota);
-        }
-        res.status(409).json({ error: "Transaksi dibatalkan", message: error.message });
+    // ── Validasi input minimal ──
+    if (!id_pegawai || typeof id_pegawai !== 'number') {
+      throw new ResponseError(400, 'id_pegawai wajib diisi dan harus berupa angka');
     }
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new ResponseError(400, 'items wajib berupa array dan tidak boleh kosong');
+    }
+    for (const [i, item] of items.entries()) {
+      if (!item.id_satuan || typeof item.id_satuan !== 'number') {
+        throw new ResponseError(400, `items[${i}].id_satuan wajib diisi dan harus berupa angka`);
+      }
+      if (!item.jumlah_jual || typeof item.jumlah_jual !== 'number' || item.jumlah_jual < 1) {
+        throw new ResponseError(400, `items[${i}].jumlah_jual harus berupa angka dan minimal 1`);
+      }
+    }
+
+    const data = await penjualanService.catatPenjualan({ no_nota_jual, id_pegawai, items });
+    res.status(201).json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── GET /penjualan/:no_nota_jual ──────────────────────────────────────────────
+export const getDetailPenjualan = async (req, res, next) => {
+  try {
+    const { no_nota_jual } = req.params;
+    const data = await penjualanService.getDetailPenjualan(no_nota_jual);
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── GET /penjualan/:no_nota_jual/nota ────────────────────────────────────────
+export const getNotaPenjualan = async (req, res, next) => {
+  try {
+    const { no_nota_jual } = req.params;
+    const data = await penjualanService.getNotaPenjualan(no_nota_jual);
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
 };

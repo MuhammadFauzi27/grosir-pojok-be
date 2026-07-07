@@ -1,17 +1,38 @@
-import { supabase } from '../config/supabase.js';
+import pool from '../config/database.js';
 
 // GET /stok
-export const getStokRealtime = async (req, res) => {
-    try {
-        const { data, error } = await supabase
-            .from('v_stok_barang')
-            .select('*')
-            // Bisa tambah logic filtering pakai req.query di sini
-            .order('nama_barang', { ascending: true });
+export const getStokRealtime = async (req, res, next) => {
+  try {
+    const { search, kategori, stok_menipis } = req.query;
+    const conditions = [];
+    const values = [];
+    let idx = 1;
 
-        if (error) throw error;
-        res.status(200).json({ data });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    if (search) {
+      conditions.push(`(nama_barang ILIKE $${idx++} OR nama_satuan ILIKE $${idx - 1})`);
+      values.push(`%${search}%`);
     }
+    if (kategori) {
+      conditions.push(`kategori = $${idx++}`);
+      values.push(kategori);
+    }
+    // stok_menipis: tampilkan satuan dengan stok <= 10 (ambang batas minimum)
+    if (stok_menipis === 'true') {
+      conditions.push(`stok_satuan <= 10`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const sql = `
+      SELECT id_barang, nama_barang, kategori, id_satuan, nama_satuan, harga_satuan, stok_satuan
+      FROM v_stok_barang
+      ${whereClause}
+      ORDER BY nama_barang, nama_satuan
+    `;
+
+    const { rows } = await pool.query(sql, values);
+    res.status(200).json({ data: rows });
+  } catch (err) {
+    next(err);
+  }
 };

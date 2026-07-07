@@ -1,6 +1,6 @@
 import pool from '../config/database.js';
 import ResponseError from '../exceptions/responseError.js';
-import * as penjualanRepository from '../repositories/penjualan.repository.js';
+import * as penjualanRepository from '../repositories/penjualanRepository.js';
 
 // ─── Helper: Generate no_nota_jual ────────────────────────────────────────────
 /**

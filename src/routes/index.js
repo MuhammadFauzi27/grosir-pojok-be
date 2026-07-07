@@ -1,7 +1,7 @@
 import express from 'express';
 import { getBarang, getSatuanByBarang } from '../controllers/barangController.js';
 import { getStokRealtime } from '../controllers/stokController.js';
-import penjualanRoute from './penjualan.route.js';
+import penjualanRoute from './penjualanRoute.js';
 
 const router = express.Router();
 
