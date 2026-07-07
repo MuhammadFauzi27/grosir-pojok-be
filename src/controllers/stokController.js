@@ -1,37 +1,20 @@
-import pool from '../config/database.js';
+import * as stokService from '../services/stokService.js';
 
-// GET /stok
+// ─── GET /stok ──────────────────────────────────────────────────────────────
+/**
+ * Cek ketersediaan stok terkini (real-time).
+ *
+ * Query params opsional:
+ *   - search       {string}  — cari berdasarkan nama_barang atau kode SKU / nama_satuan
+ *   - kategori     {string}  — filter berdasarkan kategori barang
+ *   - stok_menipis {boolean} — jika "true", hanya tampilkan satuan dengan stok di bawah ambang batas minimum
+ *
+ * Response 200: array StokBarang (setara v_stok_barang)
+ */
 export const getStokRealtime = async (req, res, next) => {
   try {
-    const { search, kategori, stok_menipis } = req.query;
-    const conditions = [];
-    const values = [];
-    let idx = 1;
-
-    if (search) {
-      conditions.push(`(nama_barang ILIKE $${idx++} OR nama_satuan ILIKE $${idx - 1})`);
-      values.push(`%${search}%`);
-    }
-    if (kategori) {
-      conditions.push(`kategori = $${idx++}`);
-      values.push(kategori);
-    }
-    // stok_menipis: tampilkan satuan dengan stok <= 10 (ambang batas minimum)
-    if (stok_menipis === 'true') {
-      conditions.push(`stok_satuan <= 10`);
-    }
-
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-    const sql = `
-      SELECT id_barang, nama_barang, kategori, id_satuan, nama_satuan, harga_satuan, stok_satuan
-      FROM v_stok_barang
-      ${whereClause}
-      ORDER BY nama_barang, nama_satuan
-    `;
-
-    const { rows } = await pool.query(sql, values);
-    res.status(200).json({ data: rows });
+    const data = await stokService.getStokRealtime(req.query);
+    res.status(200).json({ data });
   } catch (err) {
     next(err);
   }
