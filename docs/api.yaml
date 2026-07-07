@@ -1,0 +1,893 @@
+openapi: 3.0.3
+info:
+  title: API Sistem Informasi Pengelolaan Kasir dan Gudang - Grosir Pojok
+  description: >
+    Spesifikasi API untuk modul TRANSAKSIONAL Sistem Informasi Pengelolaan Kasir
+    dan Gudang pada Grosir Pojok. Mencakup autentikasi, pengelolaan data master
+    (pegawai, barang, satuan barang), pencatatan transaksi penjualan (POS), dan
+    pengecekan stok real-time.
+
+    Di luar cakupan (bukan bagian dari spesifikasi ini): laporan analitik,
+    dashboard ringkasan pendapatan/statistik, pengelolaan keuangan/akuntansi,
+    metode pembayaran, dan pengiriman barang — sesuai batasan masalah pada
+    dokumen SKPL-001.
+  version: 1.0.0
+servers:
+  - url: https://api.grosirpojok.example.com/v1
+    description: Production (cloud)
+  - url: http://localhost:3000/v1
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Autentikasi & manajemen sesi pengguna (Kasir / Gudang)
+  - name: Pegawai
+    description: Data pengguna sistem (kasir dan pegawai gudang)
+  - name: Barang
+    description: Master data barang grosir
+  - name: Satuan Barang
+    description: Satuan jual, harga, dan stok per barang
+  - name: Stok
+    description: Pengecekan ketersediaan stok terkini (real-time, untuk kasir & gudang)
+  - name: Penjualan
+    description: Transaksi penjualan (Point of Sale) dan riwayat transaksi
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============================================================
+  # AUTH
+  # ============================================================
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login pengguna (Kasir / Gudang)
+      description: >
+        Memvalidasi username & password, mengembalikan token akses dengan
+        role terkait (kasir atau gudang) untuk membatasi hak akses fitur.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  example: kasir01
+                password:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        '200':
+          description: Login berhasil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT access token
+                  pegawai:
+                    $ref: '#/components/schemas/Pegawai'
+        '401':
+          description: Username atau password salah
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout pengguna
+      description: Mengakhiri sesi/menonaktifkan token yang sedang dipakai.
+      responses:
+        '204':
+          description: Logout berhasil, tidak ada konten
+        '401':
+          description: Token tidak valid / sudah kedaluwarsa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================
+  # PEGAWAI
+  # ============================================================
+  /pegawai:
+    get:
+      tags: [Pegawai]
+      summary: Daftar seluruh pegawai
+      description: Hanya dapat diakses oleh role gudang (admin operasional).
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [kasir, gudang]
+          description: Filter berdasarkan role
+      responses:
+        '200':
+          description: Daftar pegawai
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pegawai'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Pegawai]
+      summary: Tambah pegawai baru
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PegawaiInput'
+      responses:
+        '201':
+          description: Pegawai berhasil dibuat
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pegawai'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Username sudah digunakan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /pegawai/{id_pegawai}:
+    parameters:
+      - name: id_pegawai
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Pegawai]
+      summary: Detail satu pegawai
+      responses:
+        '200':
+          description: Detail pegawai
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pegawai'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Pegawai]
+      summary: Perbarui data pegawai
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PegawaiInput'
+      responses:
+        '200':
+          description: Pegawai berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pegawai'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Pegawai]
+      summary: Hapus pegawai
+      responses:
+        '204':
+          description: Pegawai berhasil dihapus
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Tidak dapat dihapus karena masih memiliki riwayat transaksi (FK RESTRICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ============================================================
+  # BARANG
+  # ============================================================
+  /barang:
+    get:
+      tags: [Barang]
+      summary: Daftar master barang
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Cari berdasarkan nama barang
+        - name: kategori
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Daftar barang
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Barang'
+    post:
+      tags: [Barang]
+      summary: Tambah barang baru (hak akses Gudang)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BarangInput'
+      responses:
+        '201':
+          description: Barang berhasil ditambahkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Barang'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /barang/{id_barang}:
+    parameters:
+      - name: id_barang
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Barang]
+      summary: Detail barang beserta seluruh satuannya
+      responses:
+        '200':
+          description: Detail barang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BarangDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Barang]
+      summary: Perbarui data barang (hak akses Gudang)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BarangInput'
+      responses:
+        '200':
+          description: Barang berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Barang'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Barang]
+      summary: Hapus barang (hak akses Gudang)
+      responses:
+        '204':
+          description: Barang berhasil dihapus
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Tidak dapat dihapus karena masih memiliki satuan_barang terkait (FK RESTRICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================
+  # SATUAN BARANG
+  # ============================================================
+  /barang/{id_barang}/satuan:
+    parameters:
+      - name: id_barang
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Satuan Barang]
+      summary: Daftar satuan (unit kemasan) milik satu barang
+      responses:
+        '200':
+          description: Daftar satuan barang
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SatuanBarang'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Satuan Barang]
+      summary: Tambah satuan baru untuk barang (hak akses Gudang)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SatuanBarangInput'
+      responses:
+        '201':
+          description: Satuan barang berhasil ditambahkan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatuanBarang'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Nama satuan sudah ada untuk barang ini (uq_satuan_per_barang)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /satuan/{id_satuan}:
+    parameters:
+      - name: id_satuan
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [Satuan Barang]
+      summary: Detail satu satuan barang
+      responses:
+        '200':
+          description: Detail satuan barang
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatuanBarang'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Satuan Barang]
+      summary: Perbarui harga/nama satuan (hak akses Gudang)
+      description: >
+        Untuk penyesuaian stok fisik (stock opname) gunakan endpoint
+        /satuan/{id_satuan}/penyesuaian-stok, bukan endpoint ini.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nama_satuan:
+                  type: string
+                harga_satuan:
+                  type: number
+                  format: double
+      responses:
+        '200':
+          description: Satuan barang berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatuanBarang'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Satuan Barang]
+      summary: Hapus satuan barang (hak akses Gudang)
+      responses:
+        '204':
+          description: Satuan barang berhasil dihapus
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Tidak dapat dihapus karena sudah pernah dipakai dalam transaksi (FK RESTRICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /satuan/{id_satuan}/penyesuaian-stok:
+    parameters:
+      - name: id_satuan
+        in: path
+        required: true
+        schema:
+          type: integer
+    patch:
+      tags: [Satuan Barang]
+      summary: Penyesuaian stok manual (barang masuk / stock opname)
+      description: >
+        Digunakan pegawai gudang untuk menambah/mengoreksi stok fisik di luar
+        alur transaksi penjualan (mis. penerimaan barang masuk baru). Bukan
+        untuk pemotongan stok akibat penjualan — itu dilakukan otomatis oleh
+        sistem saat transaksi penjualan tercatat.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [perubahan]
+              properties:
+                perubahan:
+                  type: integer
+                  description: Nilai positif untuk menambah stok, negatif untuk mengurangi
+                  example: 50
+                catatan:
+                  type: string
+                  example: Barang masuk dari supplier
+      responses:
+        '200':
+          description: Stok berhasil disesuaikan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatuanBarang'
+        '400':
+          description: Hasil penyesuaian membuat stok menjadi negatif (melanggar CHECK stok_satuan >= 0)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ============================================================
+  # STOK (real-time, gabungan barang + satuan_barang / v_stok_barang)
+  # ============================================================
+  /stok:
+    get:
+      tags: [Stok]
+      summary: Cek ketersediaan stok terkini
+      description: >
+        Menampilkan gabungan data barang dan satuan (setara view
+        `v_stok_barang`) untuk digunakan kasir saat transaksi dan gudang
+        saat memantau persediaan secara real-time.
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Cari berdasarkan nama barang atau kode SKU
+        - name: kategori
+          in: query
+          schema:
+            type: string
+        - name: stok_menipis
+          in: query
+          schema:
+            type: boolean
+          description: Jika true, hanya tampilkan satuan dengan stok di bawah ambang batas minimum
+      responses:
+        '200':
+          description: Daftar stok terkini
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StokBarang'
+
+  # ============================================================
+  # PENJUALAN (Transaksi POS)
+  # ============================================================
+  /penjualan:
+    get:
+      tags: [Penjualan]
+      summary: Daftar riwayat transaksi penjualan
+      description: >
+        Menampilkan daftar nota penjualan (header). Untuk rincian item per
+        nota, gunakan endpoint /penjualan/{no_nota_jual}.
+      parameters:
+        - name: id_pegawai
+          in: query
+          schema:
+            type: integer
+          description: Filter berdasarkan kasir yang memproses transaksi
+        - name: tanggal_mulai
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: tanggal_selesai
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Daftar transaksi penjualan
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PenjualanSummary'
+
+    post:
+      tags: [Penjualan]
+      summary: Catat transaksi penjualan baru (checkout kasir)
+      description: >
+        Membuat satu nota penjualan beserta seluruh item detailnya secara
+        atomik (header `penjualan` + baris `detail_penjualan`). Setiap baris
+        detail yang berhasil disimpan akan otomatis memicu pemotongan
+        `stok_satuan` melalui trigger `trg_potong_stok`. Jika stok salah satu
+        item tidak mencukupi, seluruh transaksi dibatalkan (rollback) dan
+        tidak ada stok yang berubah.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PenjualanInput'
+      responses:
+        '201':
+          description: Transaksi berhasil dicatat, stok otomatis terpotong
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PenjualanDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: >
+            Stok tidak mencukupi untuk salah satu item (dilempar oleh trigger
+            fn_potong_stok), transaksi dibatalkan seluruhnya
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /penjualan/{no_nota_jual}:
+    parameters:
+      - name: no_nota_jual
+        in: path
+        required: true
+        schema:
+          type: string
+          example: TRX-20260701-001
+    get:
+      tags: [Penjualan]
+      summary: Detail satu nota penjualan beserta rincian item
+      responses:
+        '200':
+          description: Detail transaksi penjualan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PenjualanDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /penjualan/{no_nota_jual}/nota:
+    parameters:
+      - name: no_nota_jual
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Penjualan]
+      summary: Ambil data nota untuk dicetak (struk thermal)
+      description: Mengembalikan data terformat siap cetak untuk printer thermal kasir.
+      responses:
+        '200':
+          description: Data nota penjualan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PenjualanDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Token didapat dari /auth/login. Payload token memuat id_pegawai dan
+        role (kasir/gudang) untuk otorisasi endpoint.
+
+  responses:
+    BadRequest:
+      description: Input tidak valid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Data tidak ditemukan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Role pengguna tidak memiliki hak akses untuk operasi ini
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    # ---------------- PEGAWAI ----------------
+    Pegawai:
+      type: object
+      properties:
+        id_pegawai:
+          type: integer
+        nama:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+          enum: [kasir, gudang]
+        created_at:
+          type: string
+          format: date-time
+
+    PegawaiInput:
+      type: object
+      required: [nama, username, password, role]
+      properties:
+        nama:
+          type: string
+          example: Budi Santoso
+        username:
+          type: string
+          example: kasir01
+        password:
+          type: string
+          format: password
+          description: Dikirim plain-text melalui HTTPS, disimpan di server sebagai hash bcrypt
+        role:
+          type: string
+          enum: [kasir, gudang]
+
+    # ---------------- BARANG ----------------
+    Barang:
+      type: object
+      properties:
+        id_barang:
+          type: integer
+        nama_barang:
+          type: string
+        kategori:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    BarangInput:
+      type: object
+      required: [nama_barang, kategori]
+      properties:
+        nama_barang:
+          type: string
+          example: Indomie Goreng
+        kategori:
+          type: string
+          example: Mie Instan
+
+    BarangDetail:
+      allOf:
+        - $ref: '#/components/schemas/Barang'
+        - type: object
+          properties:
+            satuan:
+              type: array
+              items:
+                $ref: '#/components/schemas/SatuanBarang'
+
+    # ---------------- SATUAN BARANG ----------------
+    SatuanBarang:
+      type: object
+      properties:
+        id_satuan:
+          type: integer
+        id_barang:
+          type: integer
+        nama_satuan:
+          type: string
+          example: Dus
+        harga_satuan:
+          type: number
+          format: double
+          example: 115000
+        stok_satuan:
+          type: integer
+          example: 50
+        created_at:
+          type: string
+          format: date-time
+
+    SatuanBarangInput:
+      type: object
+      required: [nama_satuan, harga_satuan, stok_satuan]
+      properties:
+        nama_satuan:
+          type: string
+          example: Pak
+        harga_satuan:
+          type: number
+          format: double
+          minimum: 0
+          example: 14500
+        stok_satuan:
+          type: integer
+          minimum: 0
+          example: 200
+
+    # ---------------- STOK (view) ----------------
+    StokBarang:
+      type: object
+      description: Setara hasil query view v_stok_barang
+      properties:
+        id_barang:
+          type: integer
+        nama_barang:
+          type: string
+        kategori:
+          type: string
+        id_satuan:
+          type: integer
+        nama_satuan:
+          type: string
+        harga_satuan:
+          type: number
+          format: double
+        stok_satuan:
+          type: integer
+
+    # ---------------- PENJUALAN ----------------
+    PenjualanItemInput:
+      type: object
+      required: [id_satuan, jumlah_jual]
+      properties:
+        id_satuan:
+          type: integer
+          description: Referensi ke satuan_barang yang dijual
+        jumlah_jual:
+          type: integer
+          minimum: 1
+          description: Jumlah unit yang dibeli, harus > 0 (CHECK jumlah_jual > 0)
+
+    PenjualanInput:
+      type: object
+      required: [id_pegawai, items]
+      properties:
+        no_nota_jual:
+          type: string
+          description: >
+            Opsional. Jika tidak dikirim, server men-generate otomatis
+            (format: TRX-YYYYMMDD-NNN)
+          example: TRX-20260706-001
+        id_pegawai:
+          type: integer
+          description: ID kasir yang memproses transaksi
+        items:
+          type: array
+          minItems: 1
+          description: >
+            Daftar item transaksi. subtotal_jual dihitung server-side dari
+            harga_satuan saat ini x jumlah_jual (bukan dikirim client) agar
+            konsisten dengan snapshot harga di database.
+          items:
+            $ref: '#/components/schemas/PenjualanItemInput'
+
+    DetailPenjualan:
+      type: object
+      properties:
+        id_detail_jual:
+          type: integer
+        no_nota_jual:
+          type: string
+        id_satuan:
+          type: integer
+        nama_barang:
+          type: string
+        nama_satuan:
+          type: string
+        jumlah_jual:
+          type: integer
+        subtotal_jual:
+          type: number
+          format: double
+
+    PenjualanSummary:
+      type: object
+      properties:
+        no_nota_jual:
+          type: string
+        tanggal_jual:
+          type: string
+          format: date-time
+        id_pegawai:
+          type: integer
+        nama_kasir:
+          type: string
+        total_nota:
+          type: number
+          format: double
+          description: Jumlah seluruh subtotal_jual pada nota ini
+
+    PenjualanDetail:
+      type: object
+      properties:
+        no_nota_jual:
+          type: string
+        tanggal_jual:
+          type: string
+          format: date-time
+        id_pegawai:
+          type: integer
+        nama_kasir:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetailPenjualan'
+        total_nota:
+          type: number
+          format: double
