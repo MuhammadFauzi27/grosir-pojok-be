@@ -1,13 +1,13 @@
--- -- ============================================================
--- -- 10. DATA AWAL (SEED)
--- -- ============================================================
---
--- -- >> Pegawai contoh (password: 'password123' — ganti hash sebelum production!)
--- INSERT INTO pegawai (nama, username, password, role) VALUES
---                                                          ('Budi Santoso',   'kasir01',  '$2b$10$xxxxxHASHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'kasir'),
---                                                          ('Dian Rahayu',    'kasir02',  '$2b$10$xxxxxHASHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'kasir'),
---                                                          ('Eko Prasetyo',   'gudang01', '$2b$10$xxxxxHASHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'gudang');
---
+-- ============================================================
+-- 10. DATA AWAL (SEED)
+-- ============================================================
+
+-- >> Pegawai contoh (password: 'password123' — ganti hash sebelum production!)
+INSERT INTO pegawai (nama, username, password, role) VALUES
+                                                         ('Budi Santoso',   'kasir01',  'kasir01', 'kasir'),
+                                                         ('Dian Rahayu',    'kasir02',  'kasir02', 'kasir'),
+                                                         ('Eko Prasetyo',   'gudang01', 'gudang01', 'gudang');
+
 -- -- >> Master barang contoh
 -- INSERT INTO barang (nama_barang, kategori) VALUES
 --                                                ('Indomie Goreng',      'Mie Instan'),

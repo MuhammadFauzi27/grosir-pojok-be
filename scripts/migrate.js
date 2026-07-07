@@ -1,12 +1,19 @@
-require('dotenv').config();
-const { Client } = require('pg');
-const fs = require('fs');
-const path = require('path');
+import 'dotenv/config';
+import { Client } from 'pg';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// __dirname replacement for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const SQL_DIR = path.join(__dirname, '..', 'sql');
 
 async function migrate() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL,
+  });
 
   try {
     await client.connect();
@@ -14,7 +21,7 @@ async function migrate() {
 
     const sqlFiles = fs
       .readdirSync(SQL_DIR)
-      .filter((f) => f.endsWith('.sql'))
+      .filter((file) => file.endsWith('.sql'))
       .sort(); // sort by filename (0_, 1_, 2_, ...)
 
     for (const file of sqlFiles) {
