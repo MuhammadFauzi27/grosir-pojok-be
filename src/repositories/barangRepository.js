@@ -29,7 +29,7 @@ export const findAll = async ({ search, kategori, page, limit }) => {
   values.push(limit, offset);
 
   const sql = `
-    SELECT id_barang, nama_barang, kategori, created_at
+    SELECT id_barang, nama_barang, kategori, harga_barang, created_at
     FROM barang
     ${whereClause}
     ORDER BY created_at DESC
@@ -48,7 +48,7 @@ export const findAll = async ({ search, kategori, page, limit }) => {
  */
 export const findById = async (id_barang) => {
   const sql = `
-    SELECT id_barang, nama_barang, kategori, created_at
+    SELECT id_barang, nama_barang, kategori, harga_barang, created_at
     FROM barang
     WHERE id_barang = $1
   `;
@@ -65,7 +65,7 @@ export const findById = async (id_barang) => {
 export const findByIdWithSatuan = async (id_barang) => {
   // Header barang
   const barangSql = `
-    SELECT id_barang, nama_barang, kategori, created_at
+    SELECT id_barang, nama_barang, kategori, harga_barang, created_at
     FROM barang
     WHERE id_barang = $1
   `;
@@ -74,14 +74,26 @@ export const findByIdWithSatuan = async (id_barang) => {
 
   // Satuan milik barang ini
   const satuanSql = `
-    SELECT id_satuan, id_barang, nama_satuan, harga_satuan, stok_satuan, created_at
+    SELECT id_satuan, id_barang, nama_satuan, created_at
     FROM satuan_barang
     WHERE id_barang = $1
     ORDER BY nama_satuan
   `;
   const { rows: satuanRows } = await pool.query(satuanSql, [id_barang]);
 
-  return { ...barangRows[0], satuan: satuanRows };
+  // Stok barang ini
+  const stokSql = `
+    SELECT id_stok, jumlah_stok
+    FROM stok
+    WHERE id_barang = $1
+  `;
+  const { rows: stokRows } = await pool.query(stokSql, [id_barang]);
+
+  return {
+    ...barangRows[0],
+    satuan: satuanRows,
+    stok: stokRows[0] ?? null,
+  };
 };
 
 /**
@@ -90,15 +102,16 @@ export const findByIdWithSatuan = async (id_barang) => {
  * @param {object} param
  * @param {string} param.nama_barang
  * @param {string} param.kategori
+ * @param {number} param.harga_barang
  * @returns {Promise<object>} Barang yang baru dibuat
  */
-export const insert = async ({ nama_barang, kategori }) => {
+export const insert = async ({ nama_barang, kategori, harga_barang }) => {
   const sql = `
-    INSERT INTO barang (nama_barang, kategori)
-    VALUES ($1, $2)
-    RETURNING id_barang, nama_barang, kategori, created_at
+    INSERT INTO barang (nama_barang, kategori, harga_barang)
+    VALUES ($1, $2, $3)
+    RETURNING id_barang, nama_barang, kategori, harga_barang, created_at
   `;
-  const { rows } = await pool.query(sql, [nama_barang, kategori]);
+  const { rows } = await pool.query(sql, [nama_barang, kategori, harga_barang]);
   return rows[0];
 };
 
@@ -109,22 +122,30 @@ export const insert = async ({ nama_barang, kategori }) => {
  * @param {object} param
  * @param {string} param.nama_barang
  * @param {string} param.kategori
+ * @param {number} param.harga_barang
  * @returns {Promise<object|null>} Barang setelah diperbarui, atau null jika tidak ditemukan
  */
-export const update = async (id_barang, { nama_barang, kategori }) => {
+export const update = async (id_barang, { nama_barang, kategori, harga_barang }) => {
   const sql = `
     UPDATE barang
-    SET nama_barang = $1, kategori = $2
-    WHERE id_barang = $3
-    RETURNING id_barang, nama_barang, kategori, created_at
+    SET nama_barang  = COALESCE($1, nama_barang),
+        kategori     = COALESCE($2, kategori),
+        harga_barang = COALESCE($3, harga_barang)
+    WHERE id_barang = $4
+    RETURNING id_barang, nama_barang, kategori, harga_barang, created_at
   `;
-  const { rows } = await pool.query(sql, [nama_barang, kategori, id_barang]);
+  const { rows } = await pool.query(sql, [
+    nama_barang  ?? null,
+    kategori     ?? null,
+    harga_barang ?? null,
+    id_barang,
+  ]);
   return rows[0] ?? null;
 };
 
 /**
  * Hapus barang berdasarkan id.
- * Jika barang masih memiliki satuan_barang terkait, DB akan melempar FK RESTRICT error.
+ * Jika barang masih memiliki satuan_barang atau stok terkait, DB akan melempar FK RESTRICT error.
  *
  * @param {number} id_barang
  * @returns {Promise<boolean>} true jika berhasil dihapus, false jika tidak ditemukan

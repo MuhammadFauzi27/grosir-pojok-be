@@ -1,7 +1,7 @@
 -- ============================================================
 -- 7. TRIGGER: PEMOTONGAN STOK OTOMATIS
 --    Setiap INSERT ke detail_penjualan akan langsung mengurangi
---    stok di tabel satuan_barang (sesuai kebutuhan fungsional 3.5).
+--    jumlah_stok di tabel stok (berdasarkan id_barang).
 --    Jika stok tidak cukup, transaksi DIBATALKAN (RAISE EXCEPTION).
 -- ============================================================
 CREATE OR REPLACE FUNCTION fn_potong_stok()
@@ -9,26 +9,31 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-v_stok_sekarang INT;
+    v_stok_sekarang INT;
 BEGIN
-    -- Kunci baris satuan_barang agar aman dari race condition
-SELECT stok_satuan
-INTO   v_stok_sekarang
-FROM   satuan_barang
-WHERE  id_satuan = NEW.id_satuan
+    -- Kunci baris stok agar aman dari race condition
+    SELECT jumlah_stok
+    INTO   v_stok_sekarang
+    FROM   stok
+    WHERE  id_barang = NEW.id_barang
     FOR UPDATE;
 
-IF v_stok_sekarang < NEW.jumlah_jual THEN
+    IF v_stok_sekarang IS NULL THEN
         RAISE EXCEPTION
-            'Stok tidak mencukupi untuk id_satuan=%. Stok tersedia: %, diminta: %',
-            NEW.id_satuan, v_stok_sekarang, NEW.jumlah_jual;
-END IF;
+            'Data stok tidak ditemukan untuk id_barang=%', NEW.id_barang;
+    END IF;
 
-UPDATE satuan_barang
-SET    stok_satuan = stok_satuan - NEW.jumlah_jual
-WHERE  id_satuan   = NEW.id_satuan;
+    IF v_stok_sekarang < NEW.jumlah_per_barang THEN
+        RAISE EXCEPTION
+            'Stok tidak mencukupi untuk id_barang=%. Stok tersedia: %, diminta: %',
+            NEW.id_barang, v_stok_sekarang, NEW.jumlah_per_barang;
+    END IF;
 
-RETURN NEW;
+    UPDATE stok
+    SET    jumlah_stok = jumlah_stok - NEW.jumlah_per_barang
+    WHERE  id_barang   = NEW.id_barang;
+
+    RETURN NEW;
 END;
 $$;
 
@@ -38,4 +43,4 @@ CREATE TRIGGER trg_potong_stok
     EXECUTE FUNCTION fn_potong_stok();
 
 COMMENT ON FUNCTION fn_potong_stok() IS
-    'Dipanggil otomatis setiap item penjualan di-insert; memotong stok_satuan secara real-time';
+    'Dipanggil otomatis setiap item penjualan di-insert; memotong jumlah_stok di tabel stok secara real-time';

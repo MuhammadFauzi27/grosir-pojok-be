@@ -16,7 +16,7 @@ export const getBarang = async (req, res, next) => {
 
 // ─── GET /barang/:id_barang ────────────────────────────────────────────────────
 /**
- * Detail satu barang beserta seluruh satuannya.
+ * Detail satu barang beserta seluruh satuannya dan stok.
  */
 export const getDetailBarang = async (req, res, next) => {
   try {
@@ -38,7 +38,7 @@ export const getDetailBarang = async (req, res, next) => {
  */
 export const tambahBarang = async (req, res, next) => {
   try {
-    const { nama_barang, kategori } = req.body;
+    const { nama_barang, kategori, harga_barang } = req.body;
 
     if (!nama_barang || typeof nama_barang !== 'string' || nama_barang.trim() === '') {
       throw new ResponseError(400, 'nama_barang wajib diisi');
@@ -46,10 +46,14 @@ export const tambahBarang = async (req, res, next) => {
     if (!kategori || typeof kategori !== 'string' || kategori.trim() === '') {
       throw new ResponseError(400, 'kategori wajib diisi');
     }
+    if (harga_barang === undefined || harga_barang === null || typeof harga_barang !== 'number' || harga_barang < 0) {
+      throw new ResponseError(400, 'harga_barang wajib berupa angka >= 0');
+    }
 
     const data = await barangService.tambahBarang({
-      nama_barang: nama_barang.trim(),
-      kategori: kategori.trim(),
+      nama_barang  : nama_barang.trim(),
+      kategori     : kategori.trim(),
+      harga_barang,
     });
     res.status(201).json({ data });
   } catch (err) {
@@ -60,6 +64,7 @@ export const tambahBarang = async (req, res, next) => {
 // ─── PUT /barang/:id_barang ────────────────────────────────────────────────────
 /**
  * Perbarui data barang. Hak akses: Gudang.
+ * Field yang tidak dikirim dipertahankan nilainya.
  */
 export const updateBarang = async (req, res, next) => {
   try {
@@ -68,17 +73,26 @@ export const updateBarang = async (req, res, next) => {
       throw new ResponseError(400, 'id_barang harus berupa angka');
     }
 
-    const { nama_barang, kategori } = req.body;
-    if (!nama_barang || typeof nama_barang !== 'string' || nama_barang.trim() === '') {
-      throw new ResponseError(400, 'nama_barang wajib diisi');
+    const { nama_barang, kategori, harga_barang } = req.body;
+
+    // Setidaknya satu field harus ada
+    if (nama_barang === undefined && kategori === undefined && harga_barang === undefined) {
+      throw new ResponseError(400, 'Minimal satu field (nama_barang, kategori, atau harga_barang) harus dikirim');
     }
-    if (!kategori || typeof kategori !== 'string' || kategori.trim() === '') {
-      throw new ResponseError(400, 'kategori wajib diisi');
+    if (nama_barang !== undefined && (typeof nama_barang !== 'string' || nama_barang.trim() === '')) {
+      throw new ResponseError(400, 'nama_barang harus berupa string tidak kosong');
+    }
+    if (kategori !== undefined && (typeof kategori !== 'string' || kategori.trim() === '')) {
+      throw new ResponseError(400, 'kategori harus berupa string tidak kosong');
+    }
+    if (harga_barang !== undefined && (typeof harga_barang !== 'number' || harga_barang < 0)) {
+      throw new ResponseError(400, 'harga_barang harus berupa angka >= 0');
     }
 
     const data = await barangService.updateBarang(id_barang, {
-      nama_barang: nama_barang.trim(),
-      kategori: kategori.trim(),
+      nama_barang  : nama_barang?.trim(),
+      kategori     : kategori?.trim(),
+      harga_barang,
     });
     res.status(200).json({ data });
   } catch (err) {
@@ -106,8 +120,7 @@ export const hapusBarang = async (req, res, next) => {
 
 // ─── GET /barang/:id_barang/satuan ─────────────────────────────────────────────
 /**
- * Daftar satuan milik satu barang (dipakai juga oleh route lama via backward-compat).
- * @deprecated — Gunakan satuanBarangController.getSatuanByBarang via barangRoute
+ * Daftar satuan milik satu barang.
  */
 export const getSatuanByBarang = async (req, res, next) => {
   try {
@@ -116,7 +129,6 @@ export const getSatuanByBarang = async (req, res, next) => {
       throw new ResponseError(400, 'id_barang harus berupa angka');
     }
 
-    // Re-export dari satuanBarangService agar route lama tetap bekerja
     const { getSatuanByBarang: getSatuan } = await import('../services/satuanBarangService.js');
     const data = await getSatuan(id_barang);
     res.status(200).json({ data });

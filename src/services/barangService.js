@@ -17,7 +17,7 @@ export const getAllBarang = async (query) => {
 };
 
 /**
- * Ambil detail satu barang beserta seluruh satuannya.
+ * Ambil detail satu barang beserta seluruh satuannya dan stok.
  *
  * @param {number} id_barang
  * @returns {Promise<object>} BarangDetail
@@ -37,25 +37,28 @@ export const getDetailBarang = async (id_barang) => {
  * @param {object} param
  * @param {string} param.nama_barang
  * @param {string} param.kategori
+ * @param {number} param.harga_barang
  * @returns {Promise<object>} Barang yang baru dibuat
  * @throws {ResponseError} 400 jika field wajib tidak lengkap
  */
-export const tambahBarang = async ({ nama_barang, kategori }) => {
-  return barangRepository.insert({ nama_barang, kategori });
+export const tambahBarang = async ({ nama_barang, kategori, harga_barang }) => {
+  return barangRepository.insert({ nama_barang, kategori, harga_barang });
 };
 
 /**
  * Perbarui data barang.
+ * Field yang tidak dikirim dipertahankan nilainya (COALESCE).
  *
  * @param {number} id_barang
  * @param {object} param
- * @param {string} param.nama_barang
- * @param {string} param.kategori
+ * @param {string|undefined} param.nama_barang
+ * @param {string|undefined} param.kategori
+ * @param {number|undefined} param.harga_barang
  * @returns {Promise<object>} Barang setelah diperbarui
  * @throws {ResponseError} 404 jika barang tidak ditemukan
  */
-export const updateBarang = async (id_barang, { nama_barang, kategori }) => {
-  const data = await barangRepository.update(id_barang, { nama_barang, kategori });
+export const updateBarang = async (id_barang, { nama_barang, kategori, harga_barang }) => {
+  const data = await barangRepository.update(id_barang, { nama_barang, kategori, harga_barang });
   if (!data) {
     throw new ResponseError(404, `Barang dengan id_barang=${id_barang} tidak ditemukan`);
   }
@@ -63,7 +66,7 @@ export const updateBarang = async (id_barang, { nama_barang, kategori }) => {
 };
 
 /**
- * Hapus barang. Melempar 409 jika masih ada satuan_barang terkait (FK RESTRICT).
+ * Hapus barang. Melempar 409 jika masih ada satuan_barang atau stok terkait (FK RESTRICT).
  *
  * @param {number} id_barang
  * @throws {ResponseError} 404 jika tidak ditemukan | 409 jika masih ada satuan terkait
@@ -79,7 +82,7 @@ export const hapusBarang = async (id_barang) => {
     if (err.code === '23503') {
       throw new ResponseError(
         409,
-        'Tidak dapat menghapus barang yang masih memiliki satuan_barang terkait'
+        'Tidak dapat menghapus barang yang masih memiliki satuan_barang atau stok terkait'
       );
     }
     throw err;

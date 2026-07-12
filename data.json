@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "message": "Transaksi berhasil",
+  "data": {
+    "id_struk": "TRX-20260708-0001",
+    "tanggal": "2026-07-08T14:35:21Z",
+    "kasir": {
+      "id": 5,
+      "nama": "Muhammad Fauzi"
+    },
+    "items": [
+      {
+        "id": 1,
+        "nama": "Indomie Goreng",
+        "harga": 3500,
+        "qty": 3,
+        "subtotal": 10500
+      },
+      {
+        "id": 2,
+        "nama": "Aqua 600ml",
+        "harga": 4000,
+        "qty": 2,
+        "subtotal": 8000
+      },
+      {
+        "id": 3,
+        "nama": "Teh Botol Sosro",
+        "harga": 5500,
+        "qty": 1,
+        "subtotal": 5500
+      }
+    ],
+    "total_item": 6,
+    "subtotal": 24000,
+    "grand_total": 23000
+  }
+}
