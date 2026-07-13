@@ -4,14 +4,14 @@ info:
   description: >
     Spesifikasi API untuk modul TRANSAKSIONAL Sistem Informasi Pengelolaan Kasir
     dan Gudang pada Grosir Pojok. Mencakup autentikasi, pengelolaan data master
-    (pegawai, barang, satuan barang), pencatatan transaksi penjualan (POS), dan
-    pengecekan stok real-time.
+    (pegawai, barang), pencatatan transaksi penjualan (POS), dan pengecekan stok
+    real-time.
 
     Di luar cakupan (bukan bagian dari spesifikasi ini): laporan analitik,
     dashboard ringkasan pendapatan/statistik, pengelolaan keuangan/akuntansi,
     metode pembayaran, dan pengiriman barang — sesuai batasan masalah pada
     dokumen SKPL-001.
-  version: 1.0.0
+  version: 2.0.0
 servers:
   - url: https://api.grosirpojok.com/
     description: Production (cloud)
@@ -22,11 +22,11 @@ tags:
   - name: Auth
     description: Autentikasi & manajemen sesi pengguna (Kasir / Gudang)
   - name: Barang
-    description: Master data barang grosir
-  - name: Satuan Barang
-    description: Satuan jual, harga, dan stok per barang
+    description: Master data barang grosir (termasuk satuan & stok awal)
+  - name: Satuan
+    description: Master satuan barang (read-only, di-seed oleh sistem)
   - name: Stok
-    description: Pengecekan ketersediaan stok terkini (real-time, untuk kasir & gudang)
+    description: Pengecekan ketersediaan stok & penyesuaian stok manual
   - name: Penjualan
     description: Transaksi penjualan (Point of Sale) dan riwayat transaksi
 
@@ -99,22 +99,83 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   # ============================================================
+  # SATUAN (Master, read-only)
+  # ============================================================
+  /satuan:
+    get:
+      tags: [Satuan]
+      summary: Daftar master satuan barang
+      description: >
+        Mengembalikan seluruh satuan yang di-seed oleh sistem (pcs, kg, liter,
+        dll.). Satuan bersifat tetap dan tidak dapat ditambah/diubah/dihapus
+        melalui API.
+      responses:
+        '200':
+          description: Daftar master satuan
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SatuanBarang'
+
+  # ============================================================
   # BARANG
   # ============================================================
+  /barang/form-data:
+    get:
+      tags: [Barang]
+      summary: Data untuk form tambah barang
+      description: >
+        Mengembalikan daftar kategori yang sudah ada dan daftar master satuan
+        dalam satu request. Dipanggil oleh frontend sebelum membuka form
+        tambah barang agar dropdown kategori & satuan dapat diisi.
+      responses:
+        '200':
+          description: Data form berhasil diambil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      kategori:
+                        type: array
+                        description: Daftar kategori unik dari barang yang sudah ada
+                        items:
+                          type: string
+                        example: ['Mie Instan', 'Minyak Goreng', 'Sembako']
+                      satuan:
+                        type: array
+                        description: Daftar master satuan (seed)
+                        items:
+                          $ref: '#/components/schemas/SatuanBarang'
+
   /barang:
     get:
       tags: [Barang]
       summary: Daftar master barang
+      description: >
+        Mengembalikan daftar barang lengkap dengan nama_satuan dan jumlah_stok.
+        Mendukung pencarian nama barang dan filter kategori.
       parameters:
         - name: search
           in: query
           schema:
             type: string
-          description: Cari berdasarkan nama barang
+          description: Cari berdasarkan nama barang (case-insensitive, partial match)
+          example: indomie
         - name: kategori
           in: query
           schema:
             type: string
+          description: Filter berdasarkan kategori (exact match)
+          example: Mie Instan
         - name: page
           in: query
           schema:
@@ -131,12 +192,19 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Barang'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Barang'
     post:
       tags: [Barang]
-      summary: Tambah barang baru (hak akses Gudang)
+      summary: Tambah barang baru sekaligus stok awal (hak akses Gudang)
+      description: >
+        Membuat satu baris barang baru. Satuan dicocokkan berdasarkan nama ke
+        tabel master (case-insensitive). Stok awal langsung dicatat secara
+        atomik dalam satu transaksi DB.
       requestBody:
         required: true
         content:
@@ -149,7 +217,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Barang'
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Barang'
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
@@ -164,32 +235,43 @@ paths:
           type: integer
     get:
       tags: [Barang]
-      summary: Detail barang beserta seluruh satuannya
+      summary: Detail barang
+      description: Mengembalikan satu barang lengkap dengan nama_satuan dan jumlah_stok.
       responses:
         '200':
           description: Detail barang
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BarangDetail'
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Barang'
         '404':
           $ref: '#/components/responses/NotFound'
     put:
       tags: [Barang]
       summary: Perbarui data barang (hak akses Gudang)
+      description: >
+        Memperbarui nama_barang, kategori, dan/atau harga_barang.
+        Satuan tidak dapat diubah setelah barang dibuat.
+        Field yang tidak dikirim dipertahankan nilainya.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BarangInput'
+              $ref: '#/components/schemas/BarangUpdateInput'
       responses:
         '200':
           description: Barang berhasil diperbarui
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Barang'
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Barang'
         '404':
           $ref: '#/components/responses/NotFound'
         '403':
@@ -197,13 +279,16 @@ paths:
     delete:
       tags: [Barang]
       summary: Hapus barang (hak akses Gudang)
+      description: >
+        Menghapus barang. Baris stok ikut terhapus otomatis (CASCADE).
+        Gagal dengan 409 jika barang masih memiliki riwayat transaksi.
       responses:
         '204':
           description: Barang berhasil dihapus
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: Tidak dapat dihapus karena masih memiliki satuan_barang terkait (FK RESTRICT)
+          description: Tidak dapat dihapus karena masih ada riwayat transaksi (FK RESTRICT)
           content:
             application/json:
               schema:
@@ -212,117 +297,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
 
   # ============================================================
-  # SATUAN BARANG
+  # STOK
   # ============================================================
-  /barang/{id_barang}/satuan:
-    parameters:
-      - name: id_barang
-        in: path
-        required: true
-        schema:
-          type: integer
-    get:
-      tags: [Satuan Barang]
-      summary: Daftar satuan (unit kemasan) milik satu barang
-      responses:
-        '200':
-          description: Daftar satuan barang
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SatuanBarang'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    post:
-      tags: [Satuan Barang]
-      summary: Tambah satuan baru untuk barang (hak akses Gudang)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SatuanBarangInput'
-      responses:
-        '201':
-          description: Satuan barang berhasil ditambahkan
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SatuanBarang'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          description: Nama satuan sudah ada untuk barang ini (uq_satuan_per_barang)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /satuan/{id_satuan}:
-    parameters:
-      - name: id_satuan
-        in: path
-        required: true
-        schema:
-          type: integer
-    get:
-      tags: [Satuan Barang]
-      summary: Detail satu satuan barang
-      responses:
-        '200':
-          description: Detail satuan barang
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SatuanBarang'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      tags: [Satuan Barang]
-      summary: Perbarui harga/nama satuan (hak akses Gudang)
-      description: >
-        Untuk penyesuaian stok fisik (stock opname) gunakan endpoint
-        /satuan/{id_satuan}/penyesuaian-stok, bukan endpoint ini.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                nama_satuan:
-                  type: string
-                harga_satuan:
-                  type: number
-                  format: double
-      responses:
-        '200':
-          description: Satuan barang berhasil diperbarui
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SatuanBarang'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    delete:
-      tags: [Satuan Barang]
-      summary: Hapus satuan barang (hak akses Gudang)
-      responses:
-        '204':
-          description: Satuan barang berhasil dihapus
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Tidak dapat dihapus karena sudah pernah dipakai dalam transaksi (FK RESTRICT)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
   /stok/{id_barang}/penyesuaian:
     parameters:
       - name: id_barang
@@ -371,17 +347,13 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  # ============================================================
-  # STOK (real-time, gabungan barang + satuan_barang / v_stok_barang)
-  # ============================================================
   /stok:
     get:
       tags: [Stok]
       summary: Cek ketersediaan stok terkini
       description: >
-        Menampilkan gabungan data barang dan satuan (setara view
-        `v_stok_barang`) untuk digunakan kasir saat transaksi dan gudang
-        saat memantau persediaan secara real-time.
+        Menampilkan gabungan data barang dan stok untuk digunakan kasir saat
+        transaksi dan gudang saat memantau persediaan secara real-time.
       parameters:
         - name: search
           in: query
@@ -396,7 +368,7 @@ paths:
           in: query
           schema:
             type: boolean
-          description: Jika true, hanya tampilkan satuan dengan stok di bawah ambang batas minimum
+          description: Jika true, hanya tampilkan barang dengan stok di bawah ambang batas minimum
       responses:
         '200':
           description: Daftar stok terkini
@@ -460,7 +432,7 @@ paths:
         Membuat satu nota penjualan beserta seluruh item detailnya secara
         atomik (header `penjualan` + baris `detail_penjualan`). Setiap baris
         detail yang berhasil disimpan akan otomatis memicu pemotongan
-        `stok_satuan` melalui trigger `trg_potong_stok`. Jika stok salah satu
+        `stok` melalui trigger `trg_potong_stok`. Jika stok salah satu
         item tidak mencukupi, seluruh transaksi dibatalkan (rollback) dan
         tidak ada stok yang berubah.
       requestBody:
@@ -598,89 +570,101 @@ components:
         password:
           type: string
           format: password
-          description: Dikirim plain-text melalui HTTPS, disimpan di server sebagai hash bcrypt
         role:
           type: string
           enum: [kasir, gudang]
 
+    # ---------------- SATUAN BARANG (Master) ----------------
+    SatuanBarang:
+      type: object
+      description: Master satuan barang (seed-only, tidak dapat diubah via API)
+      properties:
+        id_satuan:
+          type: integer
+          example: 1
+        nama_satuan:
+          type: string
+          example: pcs
+
     # ---------------- BARANG ----------------
     Barang:
       type: object
+      description: Data barang lengkap dengan satuan dan stok
       properties:
         id_barang:
           type: integer
+          example: 1
         nama_barang:
           type: string
+          example: Indomie Goreng Dus
         kategori:
           type: string
+          example: Mie Instan
+        harga_barang:
+          type: number
+          format: double
+          example: 42000
+        id_satuan:
+          type: integer
+          example: 3
+        nama_satuan:
+          type: string
+          example: dus
+        jumlah_stok:
+          type: integer
+          example: 500
         created_at:
           type: string
           format: date-time
 
     BarangInput:
       type: object
-      required: [nama_barang, kategori]
+      required: [nama_barang, kategori, harga_barang, nama_satuan, jumlah_stok]
       properties:
         nama_barang:
           type: string
-          example: Indomie Goreng
+          example: Indomie Goreng Dus
         kategori:
           type: string
           example: Mie Instan
-
-    BarangDetail:
-      allOf:
-        - $ref: '#/components/schemas/Barang'
-        - type: object
-          properties:
-            satuan:
-              type: array
-              items:
-                $ref: '#/components/schemas/SatuanBarang'
-
-    # ---------------- SATUAN BARANG ----------------
-    SatuanBarang:
-      type: object
-      properties:
-        id_satuan:
-          type: integer
-        id_barang:
-          type: integer
-        nama_satuan:
-          type: string
-          example: Dus
-        harga_satuan:
-          type: number
-          format: double
-          example: 115000
-        stok_satuan:
-          type: integer
-          example: 50
-        created_at:
-          type: string
-          format: date-time
-
-    SatuanBarangInput:
-      type: object
-      required: [nama_satuan, harga_satuan, stok_satuan]
-      properties:
-        nama_satuan:
-          type: string
-          example: Pak
-        harga_satuan:
+        harga_barang:
           type: number
           format: double
           minimum: 0
-          example: 14500
-        stok_satuan:
+          example: 42000
+        nama_satuan:
+          type: string
+          description: >
+            Nama satuan dari daftar master (case-insensitive). Gunakan
+            GET /barang/form-data atau GET /satuan untuk mendapatkan daftar
+            satuan yang valid.
+          example: dus
+        jumlah_stok:
           type: integer
           minimum: 0
-          example: 200
+          description: Stok awal barang saat pertama kali didaftarkan
+          example: 500
+
+    BarangUpdateInput:
+      type: object
+      description: Minimal satu field harus dikirim. Satuan tidak dapat diubah.
+      properties:
+        nama_barang:
+          type: string
+          example: Indomie Goreng Dus Baru
+        kategori:
+          type: string
+          example: Mie Instan
+        harga_barang:
+          type: number
+          format: double
+          minimum: 0
+          example: 44000
 
     # ---------------- STOK (view) ----------------
     StokBarang:
       type: object
-      description: Setara hasil query view v_stok_barang
+      description: Data stok real-time per barang
       properties:
         id_barang:
           type: integer
@@ -688,14 +672,12 @@ components:
           type: string
         kategori:
           type: string
-        id_satuan:
-          type: integer
         nama_satuan:
           type: string
-        harga_satuan:
+        harga_barang:
           type: number
           format: double
-        stok_satuan:
+        jumlah_stok:
           type: integer
 
     # ---------------- PENJUALAN ----------------
@@ -727,8 +709,7 @@ components:
         items:
           type: array
           minItems: 1
-          description: >
-            Daftar item transaksi.
+          description: Daftar item transaksi.
           items:
             $ref: '#/components/schemas/PenjualanItemInput'
 
@@ -739,7 +720,7 @@ components:
           type: integer
         no_nota_jual:
           type: string
-        id_satuan:
+        id_barang:
           type: integer
         nama_barang:
           type: string

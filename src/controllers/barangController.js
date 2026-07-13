@@ -1,6 +1,21 @@
 import * as barangService from '../services/barangService.js';
 import ResponseError from '../exceptions/responseError.js';
 
+// ─── GET /barang/form-data ─────────────────────────────────────────────────────
+/**
+ * Data untuk mengisi form create barang:
+ * - kategori: daftar kategori yang sudah ada (dari barang existing)
+ * - satuan  : daftar master satuan (pcs, kg, liter, dst.)
+ */
+export const getFormData = async (req, res, next) => {
+  try {
+    const data = await barangService.getFormData();
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ─── GET /barang ───────────────────────────────────────────────────────────────
 /**
  * Daftar master barang dengan filter opsional (search, kategori) & pagination.
@@ -16,7 +31,7 @@ export const getBarang = async (req, res, next) => {
 
 // ─── GET /barang/:id_barang ────────────────────────────────────────────────────
 /**
- * Detail satu barang beserta seluruh satuannya dan stok.
+ * Detail satu barang (inkl. nama_satuan & jumlah_stok).
  */
 export const getDetailBarang = async (req, res, next) => {
   try {
@@ -34,11 +49,12 @@ export const getDetailBarang = async (req, res, next) => {
 
 // ─── POST /barang ──────────────────────────────────────────────────────────────
 /**
- * Tambah barang baru. Hak akses: Gudang.
+ * Tambah barang baru sekaligus stok awal. Hak akses: Gudang.
+ * Body: { nama_barang, kategori, harga_barang, nama_satuan, jumlah_stok }
  */
 export const tambahBarang = async (req, res, next) => {
   try {
-    const { nama_barang, kategori, harga_barang } = req.body;
+    const { nama_barang, kategori, harga_barang, nama_satuan, jumlah_stok } = req.body;
 
     if (!nama_barang || typeof nama_barang !== 'string' || nama_barang.trim() === '') {
       throw new ResponseError(400, 'nama_barang wajib diisi');
@@ -49,11 +65,19 @@ export const tambahBarang = async (req, res, next) => {
     if (harga_barang === undefined || harga_barang === null || typeof harga_barang !== 'number' || harga_barang < 0) {
       throw new ResponseError(400, 'harga_barang wajib berupa angka >= 0');
     }
+    if (!nama_satuan || typeof nama_satuan !== 'string' || nama_satuan.trim() === '') {
+      throw new ResponseError(400, 'nama_satuan wajib diisi');
+    }
+    if (jumlah_stok === undefined || jumlah_stok === null || !Number.isInteger(jumlah_stok) || jumlah_stok < 0) {
+      throw new ResponseError(400, 'jumlah_stok wajib berupa bilangan bulat >= 0');
+    }
 
     const data = await barangService.tambahBarang({
-      nama_barang  : nama_barang.trim(),
-      kategori     : kategori.trim(),
+      nama_barang : nama_barang.trim(),
+      kategori    : kategori.trim(),
       harga_barang,
+      nama_satuan : nama_satuan.trim().toLowerCase(),
+      jumlah_stok,
     });
     res.status(201).json({ data });
   } catch (err) {
@@ -65,6 +89,7 @@ export const tambahBarang = async (req, res, next) => {
 /**
  * Perbarui data barang. Hak akses: Gudang.
  * Field yang tidak dikirim dipertahankan nilainya.
+ * Satuan tidak dapat diubah setelah dibuat.
  */
 export const updateBarang = async (req, res, next) => {
   try {
@@ -75,7 +100,6 @@ export const updateBarang = async (req, res, next) => {
 
     const { nama_barang, kategori, harga_barang } = req.body;
 
-    // Setidaknya satu field harus ada
     if (nama_barang === undefined && kategori === undefined && harga_barang === undefined) {
       throw new ResponseError(400, 'Minimal satu field (nama_barang, kategori, atau harga_barang) harus dikirim');
     }
@@ -113,25 +137,6 @@ export const hapusBarang = async (req, res, next) => {
 
     await barangService.hapusBarang(id_barang);
     res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ─── GET /barang/:id_barang/satuan ─────────────────────────────────────────────
-/**
- * Daftar satuan milik satu barang.
- */
-export const getSatuanByBarang = async (req, res, next) => {
-  try {
-    const id_barang = parseInt(req.params.id_barang, 10);
-    if (isNaN(id_barang)) {
-      throw new ResponseError(400, 'id_barang harus berupa angka');
-    }
-
-    const { getSatuanByBarang: getSatuan } = await import('../services/satuanBarangService.js');
-    const data = await getSatuan(id_barang);
-    res.status(200).json({ data });
   } catch (err) {
     next(err);
   }

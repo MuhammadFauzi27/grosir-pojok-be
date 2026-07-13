@@ -2,6 +2,7 @@ import pool from '../config/database.js';
 
 /**
  * Ambil daftar barang dengan filter opsional & pagination.
+ * Menyertakan nama_satuan (JOIN satuan_barang) dan jumlah_stok (JOIN stok).
  *
  * @param {object} filters
  * @param {string|undefined}  filters.search   — cari berdasarkan nama_barang (ILIKE)
@@ -17,11 +18,11 @@ export const findAll = async ({ search, kategori, page, limit }) => {
   let idx = 1;
 
   if (search) {
-    conditions.push(`nama_barang ILIKE $${idx++}`);
+    conditions.push(`b.nama_barang ILIKE $${idx++}`);
     values.push(`%${search}%`);
   }
   if (kategori) {
-    conditions.push(`kategori = $${idx++}`);
+    conditions.push(`b.kategori = $${idx++}`);
     values.push(kategori);
   }
 
@@ -29,10 +30,20 @@ export const findAll = async ({ search, kategori, page, limit }) => {
   values.push(limit, offset);
 
   const sql = `
-    SELECT id_barang, nama_barang, kategori, harga_barang, created_at
-    FROM barang
+    SELECT
+      b.id_barang,
+      b.nama_barang,
+      b.kategori,
+      b.harga_barang,
+      b.id_satuan,
+      s.nama_satuan,
+      COALESCE(st.jumlah_stok, 0) AS jumlah_stok,
+      b.created_at
+    FROM barang b
+    JOIN satuan_barang s ON b.id_satuan = s.id_satuan
+    LEFT JOIN stok st ON b.id_barang = st.id_barang
     ${whereClause}
-    ORDER BY created_at DESC
+    ORDER BY b.created_at DESC
     LIMIT $${idx++} OFFSET $${idx++}
   `;
 
@@ -42,87 +53,107 @@ export const findAll = async ({ search, kategori, page, limit }) => {
 
 /**
  * Cari satu barang berdasarkan primary key.
+ * Menyertakan nama_satuan dan jumlah_stok.
  *
  * @param {number} id_barang
  * @returns {Promise<object|null>} Barang atau null jika tidak ditemukan
  */
 export const findById = async (id_barang) => {
   const sql = `
-    SELECT id_barang, nama_barang, kategori, harga_barang, created_at
-    FROM barang
-    WHERE id_barang = $1
+    SELECT
+      b.id_barang,
+      b.nama_barang,
+      b.kategori,
+      b.harga_barang,
+      b.id_satuan,
+      s.nama_satuan,
+      COALESCE(st.jumlah_stok, 0) AS jumlah_stok,
+      b.created_at
+    FROM barang b
+    JOIN satuan_barang s ON b.id_satuan = s.id_satuan
+    LEFT JOIN stok st ON b.id_barang = st.id_barang
+    WHERE b.id_barang = $1
   `;
   const { rows } = await pool.query(sql, [id_barang]);
   return rows[0] ?? null;
 };
 
 /**
- * Ambil detail barang beserta seluruh satuannya (BarangDetail).
+ * Ambil seluruh nilai kategori yang unik dari tabel barang.
  *
- * @param {number} id_barang
- * @returns {Promise<object|null>} BarangDetail atau null jika tidak ditemukan
+ * @returns {Promise<string[]>} array nama kategori unik, terurut abjad
  */
-export const findByIdWithSatuan = async (id_barang) => {
-  // Header barang
-  const barangSql = `
-    SELECT id_barang, nama_barang, kategori, harga_barang, created_at
+export const findAllKategori = async () => {
+  const sql = `
+    SELECT DISTINCT kategori
     FROM barang
-    WHERE id_barang = $1
+    ORDER BY kategori ASC
   `;
-  const { rows: barangRows } = await pool.query(barangSql, [id_barang]);
-  if (barangRows.length === 0) return null;
-
-  // Satuan milik barang ini
-  const satuanSql = `
-    SELECT id_satuan, id_barang, nama_satuan, created_at
-    FROM satuan_barang
-    WHERE id_barang = $1
-    ORDER BY nama_satuan
-  `;
-  const { rows: satuanRows } = await pool.query(satuanSql, [id_barang]);
-
-  // Stok barang ini
-  const stokSql = `
-    SELECT id_stok, jumlah_stok
-    FROM stok
-    WHERE id_barang = $1
-  `;
-  const { rows: stokRows } = await pool.query(stokSql, [id_barang]);
-
-  return {
-    ...barangRows[0],
-    satuan: satuanRows,
-    stok: stokRows[0] ?? null,
-  };
+  const { rows } = await pool.query(sql);
+  return rows.map((r) => r.kategori);
 };
 
 /**
- * Insert barang baru.
+ * Insert barang baru sekaligus membuat baris stok awal.
+ * Dijalankan dalam satu transaksi DB agar atomik.
  *
  * @param {object} param
  * @param {string} param.nama_barang
  * @param {string} param.kategori
  * @param {number} param.harga_barang
- * @returns {Promise<object>} Barang yang baru dibuat
+ * @param {number} param.id_satuan
+ * @param {number} param.jumlah_stok
+ * @returns {Promise<object>} Barang lengkap (termasuk nama_satuan & jumlah_stok)
  */
-export const insert = async ({ nama_barang, kategori, harga_barang }) => {
-  const sql = `
-    INSERT INTO barang (nama_barang, kategori, harga_barang)
-    VALUES ($1, $2, $3)
-    RETURNING id_barang, nama_barang, kategori, harga_barang, created_at
-  `;
-  const { rows } = await pool.query(sql, [nama_barang, kategori, harga_barang]);
-  return rows[0];
+export const insert = async ({ nama_barang, kategori, harga_barang, id_satuan, jumlah_stok }) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const barangSql = `
+      INSERT INTO barang (nama_barang, kategori, harga_barang, id_satuan)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id_barang, nama_barang, kategori, harga_barang, id_satuan, created_at
+    `;
+    const { rows: barangRows } = await client.query(barangSql, [
+      nama_barang,
+      kategori,
+      harga_barang,
+      id_satuan,
+    ]);
+    const barang = barangRows[0];
+
+    const stokSql = `
+      INSERT INTO stok (id_barang, jumlah_stok)
+      VALUES ($1, $2)
+      RETURNING jumlah_stok
+    `;
+    const { rows: stokRows } = await client.query(stokSql, [barang.id_barang, jumlah_stok]);
+
+    await client.query('COMMIT');
+
+    return {
+      ...barang,
+      jumlah_stok: stokRows[0].jumlah_stok,
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 /**
  * Update data barang.
+ * Field yang tidak dikirim dipertahankan nilainya (COALESCE).
+ * nama_satuan tidak dapat diubah melalui update.
  *
  * @param {number} id_barang
  * @param {object} param
- * @param {string} param.nama_barang
- * @param {string} param.kategori
- * @param {number} param.harga_barang
+ * @param {string|undefined} param.nama_barang
+ * @param {string|undefined} param.kategori
+ * @param {number|undefined} param.harga_barang
  * @returns {Promise<object|null>} Barang setelah diperbarui, atau null jika tidak ditemukan
  */
 export const update = async (id_barang, { nama_barang, kategori, harga_barang }) => {
@@ -132,7 +163,7 @@ export const update = async (id_barang, { nama_barang, kategori, harga_barang })
         kategori     = COALESCE($2, kategori),
         harga_barang = COALESCE($3, harga_barang)
     WHERE id_barang = $4
-    RETURNING id_barang, nama_barang, kategori, harga_barang, created_at
+    RETURNING id_barang, nama_barang, kategori, harga_barang, id_satuan, created_at
   `;
   const { rows } = await pool.query(sql, [
     nama_barang  ?? null,
@@ -140,12 +171,15 @@ export const update = async (id_barang, { nama_barang, kategori, harga_barang })
     harga_barang ?? null,
     id_barang,
   ]);
-  return rows[0] ?? null;
+  if (!rows[0]) return null;
+
+  // Ambil kembali dengan JOIN agar nama_satuan & jumlah_stok ikut ter-return
+  return findById(id_barang);
 };
 
 /**
  * Hapus barang berdasarkan id.
- * Jika barang masih memiliki satuan_barang atau stok terkait, DB akan melempar FK RESTRICT error.
+ * Tabel stok terhubung dengan ON DELETE CASCADE, jadi baris stok ikut terhapus.
  *
  * @param {number} id_barang
  * @returns {Promise<boolean>} true jika berhasil dihapus, false jika tidak ditemukan

@@ -22,12 +22,12 @@ export const login = async ({ username, password , role}) => {
 
   // — Tolak dengan pesan generik agar tidak bocorkan info username valid/tidak —
   if (!pegawai) {
-    throw new ResponseError(401, 'Username atau password salah');
+    throw new ResponseError(401, 'Username atau password atau peran salah');
   }
 
   // — Verifikasi password secara langsung (plain string) —
   if (password !== pegawai.password || role !== pegawai.role) {
-    throw new ResponseError(401, 'Username atau password salah');
+    throw new ResponseError(401, 'Username atau password atau peran salah');
   }
 
   // — Generate JWT: payload memuat id_pegawai & role untuk otorisasi —
