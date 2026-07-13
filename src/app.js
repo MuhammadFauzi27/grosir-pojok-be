@@ -2,7 +2,7 @@ import express from "express"
 import morgan from "morgan"
 import helmet from "helmet"
 import cors from "cors"
-import mainRoute from "./routes/index.js"
+import router from "./routes/index.js"
 import errorMiddleware from "./middlewares/errorMiddleware.js"
 
 
@@ -29,7 +29,7 @@ app.use(cors({
   credentials: true
 }))
 
-app.use('/v1', mainRoute)
+app.use('/v1', router)
 
 app.use(errorMiddleware)
 
