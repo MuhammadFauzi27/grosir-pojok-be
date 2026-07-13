@@ -16,7 +16,7 @@ import jwtUtil from '../utils/jwt.js';
  * @returns {Promise<{ token: string, pegawai: object }>}
  * @throws {ResponseError} 401 jika username tidak ditemukan atau password salah
  */
-export const login = async ({ username, password }) => {
+export const login = async ({ username, password , role}) => {
   // — Cari pegawai di database —
   const pegawai = await authRepository.findByUsername(username);
 
@@ -26,7 +26,7 @@ export const login = async ({ username, password }) => {
   }
 
   // — Verifikasi password secara langsung (plain string) —
-  if (password !== pegawai.password) {
+  if (password !== pegawai.password || role !== pegawai.role) {
     throw new ResponseError(401, 'Username atau password salah');
   }
 

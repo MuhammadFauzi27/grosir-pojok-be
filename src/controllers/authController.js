@@ -18,7 +18,7 @@ import ResponseError from '../exceptions/responseError.js';
  */
 export const login = async (req, res, next) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, role } = req.body;
 
     // ── Validasi keberadaan field wajib ──
     if (!username || typeof username !== 'string' || username.trim() === '') {
@@ -31,6 +31,7 @@ export const login = async (req, res, next) => {
     const result = await authService.login({
       username: username.trim(),
       password,
+      role
     });
 
     res.status(200).json(result);
