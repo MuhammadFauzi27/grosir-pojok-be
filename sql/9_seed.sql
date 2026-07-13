@@ -4,9 +4,9 @@
 
 -- >> Pegawai contoh (password: plain — ganti hash sebelum production!)
 INSERT INTO pegawai (nama, username, password, role) VALUES
-    ('Budi Santoso',   'kasir01',  'kasir01',  'kasir'),
-    ('Dian Rahayu',    'kasir02',  'kasir02',  'kasir'),
-    ('Eko Prasetyo',   'gudang01', 'gudang01', 'gudang');
+    ('Budi Santoso',   'kasir01',  '$2b$10$Si2AcoJJr8OJZGyPp/ZmjOWlvRmz/wDQvOVfJLzfMCXKzffxCpdN',  'kasir'),
+    ('Dian Rahayu',    'kasir02',  '$2b$10$5VB3Jq3pW3YgP4f7MMNWq.qyC7kWkcft/oJLMOJHxCW0vaaiUkJSG',  'kasir'),
+    ('Eko Prasetyo',   'gudang01', '$2b$10$8tsD.4Kf9I4oeUVtnp47Uu.ZvCeEY16/YPs4ORIHdKfR9WLJcCH9m', 'gudang');
 
 -- -- >> Master barang contoh (termasuk harga_barang)
 -- INSERT INTO barang (nama_barang, kategori, harga_barang) VALUES
