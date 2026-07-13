@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import ResponseError from '../exceptions/responseError.js';
 import * as authRepository from '../repositories/authRepository.js';
 import jwtUtil from '../utils/jwt.js';
@@ -7,7 +6,7 @@ import jwtUtil from '../utils/jwt.js';
  * Proses login pegawai:
  *  1. Cari pegawai berdasarkan username di database
  *  2. Validasi bahwa pegawai ditemukan (401 jika tidak ada)
- *  3. Bandingkan password plain-text dengan hash bcrypt di DB (401 jika salah)
+ *  3. Bandingkan password plain-text langsung dengan password di DB (401 jika salah)
  *  4. Generate JWT token dengan payload { id_pegawai, role }
  *  5. Kembalikan token + data pegawai (tanpa password)
  *
@@ -26,9 +25,8 @@ export const login = async ({ username, password }) => {
     throw new ResponseError(401, 'Username atau password salah');
   }
 
-  // — Verifikasi password terhadap hash bcrypt —
-  const passwordValid = await bcrypt.compare(password, pegawai.password);
-  if (!passwordValid) {
+  // — Verifikasi password secara langsung (plain string) —
+  if (password !== pegawai.password) {
     throw new ResponseError(401, 'Username atau password salah');
   }
 
