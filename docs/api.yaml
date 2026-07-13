@@ -51,7 +51,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password]
+              required: [username, password, role]
               properties:
                 username:
                   type: string
@@ -60,6 +60,9 @@ paths:
                   type: string
                   format: password
                   example: password123
+                role:
+                  type: string
+                  example: kasir
       responses:
         '200':
           description: Login berhasil
@@ -74,7 +77,7 @@ paths:
                   pegawai:
                     $ref: '#/components/schemas/Pegawai'
         '401':
-          description: Username atau password salah
+          description: Username atau password atau peran salah
           content:
             application/json:
               schema:
