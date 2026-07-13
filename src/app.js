@@ -5,24 +5,21 @@ import cors from "cors"
 import mainRoute from "./routes/index.js"
 import errorMiddleware from "./middlewares/errorMiddleware.js"
 
-const App = () => {
-  const app = express()
 
-  app.use(express.json())
-  app.use(express.urlencoded({ extended: true }))
-  app.use(morgan("dev"))
-  app.use(helmet())
-  app.use(cors({
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true
-  }))
+const app = express()
 
-  app.use('/v1', mainRoute)
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+app.use(morgan("dev"))
+app.use(helmet())
+app.use(cors({
+  origin: "http://localhost:5173",
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+  credentials: true
+}))
 
-  app.use(errorMiddleware.errorMiddleware())
+app.use('/v1', mainRoute)
 
-  return app
-}
+app.use(errorMiddleware.errorMiddleware())
 
-export default App
+export default app
