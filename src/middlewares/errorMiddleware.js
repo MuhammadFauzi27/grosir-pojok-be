@@ -3,6 +3,8 @@ import ResponseError from '../exceptions/responseError.js';
 /**
  * Global error-handling middleware Express.
  * Menangkap semua error yang dilempar via next(err) dari controller/service/repository.
+ *
+ * @type {import('express').ErrorRequestHandler}
  */
 const errorMiddleware = (err, req, res, next) => {
   console.error(`[errorMiddleware] ${err.status ?? 500} — ${err.message}`);
@@ -42,7 +44,4 @@ const httpStatusText = (status) => {
   return map[status] ?? 'Error';
 };
 
-export default {
-  errorMiddleware,
-  httpStatusText,
-};
+export default errorMiddleware
