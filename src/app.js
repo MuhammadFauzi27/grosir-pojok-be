@@ -12,11 +12,15 @@ const App = () => {
   app.use(express.urlencoded({ extended: true }))
   app.use(morgan("dev"))
   app.use(helmet())
-  app.use(cors())
+  app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true
+  }))
 
   app.use('/api', mainRoute)
 
-  app.use(errorMiddleware)
+  app.use(errorMiddleware.errorMiddleware())
 
   return app
 }

@@ -42,4 +42,7 @@ const httpStatusText = (status) => {
   return map[status] ?? 'Error';
 };
 
-export default errorMiddleware;
+export default {
+  errorMiddleware,
+  httpStatusText,
+};
