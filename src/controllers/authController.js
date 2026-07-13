@@ -38,3 +38,26 @@ export const login = async (req, res, next) => {
     next(err);
   }
 };
+
+// ─── POST /auth/logout ─────────────────────────────────────────────────────────
+/**
+ * Handler logout pengguna.
+ * Mengakhiri sesi pengguna. Karena JWT stateless dan belum ada mekanisme blacklist token
+ * di level backend (Redis/DB), endpoint ini cukup memvalidasi request dan merespon 204
+ * untuk menginstruksikan client agar menghapus token di sisi mereka.
+ *
+ * Response 204:
+ *   Tidak ada konten
+ *
+ * Response 401:
+ *   { error: 'Unauthorized', message: string }
+ */
+export const logout = async (req, res, next) => {
+  try {
+    // Di sistem stateless murni, cukup minta client hapus token dengan respon 204.
+    // authMiddleware memastikan hanya user yang memiliki token valid yang bisa hit ini.
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+};

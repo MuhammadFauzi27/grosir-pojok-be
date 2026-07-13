@@ -320,21 +320,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /satuan/{id_satuan}/penyesuaian-stok:
+  /stok/{id_barang}/penyesuaian:
     parameters:
-      - name: id_satuan
+      - name: id_barang
         in: path
         required: true
         schema:
           type: integer
     patch:
-      tags: [Satuan Barang]
-      summary: Penyesuaian stok manual (barang masuk / stock opname)
+      tags: [Stok]
+      summary: Penyesuaian stok manual per barang (barang masuk / stock opname)
       description: >
         Digunakan pegawai gudang untuk menambah/mengoreksi stok fisik di luar
-        alur transaksi penjualan (mis. penerimaan barang masuk baru). Bukan
-        untuk pemotongan stok akibat penjualan — itu dilakukan otomatis oleh
-        sistem saat transaksi penjualan tercatat.
+        alur transaksi penjualan (mis. penerimaan barang masuk baru).
       requestBody:
         required: true
         content:
@@ -347,18 +345,20 @@ paths:
                   type: integer
                   description: Nilai positif untuk menambah stok, negatif untuk mengurangi
                   example: 50
-                catatan:
-                  type: string
-                  example: Barang masuk dari supplier
       responses:
         '200':
           description: Stok berhasil disesuaikan
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SatuanBarang'
+                type: object
+                properties:
+                  id_barang:
+                    type: integer
+                  jumlah_stok:
+                    type: integer
         '400':
-          description: Hasil penyesuaian membuat stok menjadi negatif (melanggar CHECK stok_satuan >= 0)
+          description: Hasil penyesuaian membuat stok menjadi negatif (melanggar CHECK jumlah_stok >= 0)
           content:
             application/json:
               schema:
@@ -484,9 +484,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /penjualan/{no_nota_jual}:
+  /penjualan/{no_nota}:
     parameters:
-      - name: no_nota_jual
+      - name: no_nota
         in: path
         required: true
         schema:
@@ -505,9 +505,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /penjualan/{no_nota_jual}/nota:
+  /penjualan/{no_nota}/nota:
     parameters:
-      - name: no_nota_jual
+      - name: no_nota
         in: path
         required: true
         schema:
@@ -698,36 +698,34 @@ components:
     # ---------------- PENJUALAN ----------------
     PenjualanItemInput:
       type: object
-      required: [id_satuan, jumlah_jual]
+      required: [id_barang, jumlah_per_barang]
       properties:
-        id_satuan:
+        id_barang:
           type: integer
-          description: Referensi ke satuan_barang yang dijual
-        jumlah_jual:
+          description: Referensi ke barang yang dijual
+        jumlah_per_barang:
           type: integer
           minimum: 1
-          description: Jumlah unit yang dibeli, harus > 0 (CHECK jumlah_jual > 0)
+          description: Jumlah unit yang dibeli, harus > 0
 
     PenjualanInput:
       type: object
-      required: [id_pegawai, items]
+      required: [username, items]
       properties:
-        no_nota_jual:
+        no_nota:
           type: string
           description: >
             Opsional. Jika tidak dikirim, server men-generate otomatis
             (format: TRX-YYYYMMDD-NNN)
           example: TRX-20260706-001
-        id_pegawai:
-          type: integer
-          description: ID kasir yang memproses transaksi
+        username:
+          type: string
+          description: Username kasir yang memproses transaksi
         items:
           type: array
           minItems: 1
           description: >
-            Daftar item transaksi. subtotal_jual dihitung server-side dari
-            harga_satuan saat ini x jumlah_jual (bukan dikirim client) agar
-            konsisten dengan snapshot harga di database.
+            Daftar item transaksi.
           items:
             $ref: '#/components/schemas/PenjualanItemInput'
 
