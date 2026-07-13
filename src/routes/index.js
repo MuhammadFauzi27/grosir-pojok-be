@@ -22,4 +22,11 @@ router.use('/stok', stokRoute);
 // ─── Endpoint /penjualan — Layered Architecture ───────────────────────────────
 router.use('/penjualan', penjualanRoute);
 
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Grosir Pojok API berjalan'
+  });
+});
+
 export default router;
