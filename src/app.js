@@ -18,7 +18,7 @@ const App = () => {
     credentials: true
   }))
 
-  app.use('/api', mainRoute)
+  app.use('/v1', mainRoute)
 
   app.use(errorMiddleware.errorMiddleware())
 
