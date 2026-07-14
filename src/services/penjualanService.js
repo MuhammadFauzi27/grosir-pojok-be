@@ -29,16 +29,23 @@ const generateNoNota = async (client) => {
  * Ambil daftar riwayat penjualan dengan filter opsional & pagination.
  *
  * @param {object} filters
+ * @param {string|undefined} filters.search         — cari berdasarkan no_nota atau nama kasir (ILIKE)
+ * @param {string|undefined} filters.username       — filter berdasarkan username kasir (exact match)
+ * @param {string|undefined} filters.tanggal_mulai  — batas awal tanggal (inklusif, YYYY-MM-DD)
+ * @param {string|undefined} filters.tanggal_selesai— batas akhir tanggal (inklusif, YYYY-MM-DD)
+ * @param {number}           filters.page           — halaman (1-based, default 1)
+ * @param {number}           filters.limit          — jumlah data per halaman (default 20)
  * @returns {Promise<object[]>} array PenjualanSummary
  */
 export const getAllPenjualan = async (filters) => {
   const page  = Math.max(1, parseInt(filters.page  ?? 1,  10));
   const limit = Math.max(1, parseInt(filters.limit ?? 20, 10));
+  const search           = filters.search          ?? undefined;
   const username         = filters.username        ?? undefined;
   const tanggal_mulai    = filters.tanggal_mulai   ?? undefined;
   const tanggal_selesai  = filters.tanggal_selesai ?? undefined;
 
-  return penjualanRepository.findAll({ username, tanggal_mulai, tanggal_selesai, page, limit });
+  return penjualanRepository.findAll({ search, username, tanggal_mulai, tanggal_selesai, page, limit });
 };
 
 /**

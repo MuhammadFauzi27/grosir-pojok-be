@@ -1,7 +1,6 @@
 -- ============================================================
 -- 6. INDEX  (mempercepat query yang sering dipakai)
 -- ============================================================
-CREATE INDEX idx_satuan_barang_id_barang  ON satuan_barang    (id_barang);
 CREATE INDEX idx_stok_id_barang           ON stok             (id_barang);
 CREATE INDEX idx_penjualan_username       ON penjualan        (username);
 CREATE INDEX idx_penjualan_tanggal        ON penjualan        (tanggal_jual DESC);

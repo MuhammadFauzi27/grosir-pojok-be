@@ -387,43 +387,63 @@ paths:
       tags: [Penjualan]
       summary: Daftar riwayat transaksi penjualan
       description: >
-        Menampilkan daftar nota penjualan (header). Untuk rincian item per
-        nota, gunakan endpoint /penjualan/{no_nota_jual}.
+        Menampilkan daftar nota penjualan (header). Mendukung pencarian
+        berdasarkan nomor nota atau nama kasir (partial, case-insensitive)
+        serta filter berdasarkan username kasir dan rentang tanggal.
+        Untuk rincian item per nota, gunakan endpoint /penjualan/{no_nota}.
       parameters:
-        - name: id_pegawai
+        - name: search
           in: query
           schema:
-            type: integer
-          description: Filter berdasarkan kasir yang memproses transaksi
+            type: string
+          description: >
+            Cari berdasarkan nomor nota (no_nota) atau nama kasir
+            (case-insensitive, partial match)
+          example: TRX-20260
+        - name: username
+          in: query
+          schema:
+            type: string
+          description: Filter berdasarkan username kasir yang memproses transaksi (exact match)
+          example: kasir01
         - name: tanggal_mulai
           in: query
           schema:
             type: string
             format: date
+          description: Batas awal tanggal transaksi (inklusif, format YYYY-MM-DD)
+          example: '2026-07-01'
         - name: tanggal_selesai
           in: query
           schema:
             type: string
             format: date
+          description: Batas akhir tanggal transaksi (inklusif, format YYYY-MM-DD)
+          example: '2026-07-31'
         - name: page
           in: query
           schema:
             type: integer
             default: 1
+          description: Nomor halaman (1-based)
         - name: limit
           in: query
           schema:
             type: integer
             default: 20
+          description: Jumlah data per halaman
       responses:
         '200':
           description: Daftar transaksi penjualan
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PenjualanSummary'
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PenjualanSummary'
 
     post:
       tags: [Penjualan]
@@ -734,37 +754,72 @@ components:
 
     PenjualanSummary:
       type: object
+      description: Ringkasan satu nota penjualan (header)
       properties:
-        no_nota_jual:
+        no_nota:
           type: string
+          example: TRX-20260701-001
         tanggal_jual:
           type: string
           format: date-time
-        id_pegawai:
-          type: integer
-        nama_kasir:
-          type: string
-        total_nota:
+          example: '2026-07-01T08:30:00Z'
+        total_jual:
           type: number
           format: double
-          description: Jumlah seluruh subtotal_jual pada nota ini
+          example: 125000
+        username:
+          type: string
+          example: kasir01
+        nama_kasir:
+          type: string
+          example: Budi Santoso
 
     PenjualanDetail:
       type: object
+      description: Detail lengkap satu nota penjualan beserta seluruh item
       properties:
-        no_nota_jual:
+        no_nota:
           type: string
+          example: TRX-20260701-001
         tanggal_jual:
           type: string
           format: date-time
-        id_pegawai:
-          type: integer
+          example: '2026-07-01T08:30:00Z'
+        total_jual:
+          type: number
+          format: double
+          example: 125000
+        username:
+          type: string
+          example: kasir01
         nama_kasir:
           type: string
+          example: Budi Santoso
         items:
           type: array
           items:
             $ref: '#/components/schemas/DetailPenjualan'
-        total_nota:
+
+    DetailPenjualan:
+      type: object
+      description: Satu baris item dalam nota penjualan
+      properties:
+        id_detail_jual:
+          type: integer
+          example: 42
+        no_nota:
+          type: string
+          example: TRX-20260701-001
+        id_barang:
+          type: integer
+          example: 7
+        nama_barang:
+          type: string
+          example: Indomie Goreng Dus
+        jumlah_per_barang:
+          type: integer
+          example: 3
+        subtotal_jual:
           type: number
           format: double
+          example: 126000

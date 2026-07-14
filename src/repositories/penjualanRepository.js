@@ -6,6 +6,7 @@ import pool from '../config/database.js';
  * dari kolom total_jual yang sudah tersimpan.
  *
  * @param {object} filters
+ * @param {string|undefined} filters.search          — cari berdasarkan no_nota atau nama kasir (ILIKE)
  * @param {string|undefined} filters.username        — filter berdasarkan username kasir
  * @param {string|undefined} filters.tanggal_mulai   — format YYYY-MM-DD
  * @param {string|undefined} filters.tanggal_selesai — format YYYY-MM-DD
@@ -13,12 +14,17 @@ import pool from '../config/database.js';
  * @param {number} filters.limit
  * @returns {Promise<object[]>} array PenjualanSummary
  */
-export const findAll = async ({ username, tanggal_mulai, tanggal_selesai, page, limit }) => {
+export const findAll = async ({ search, username, tanggal_mulai, tanggal_selesai, page, limit }) => {
   const offset = (page - 1) * limit;
   const conditions = [];
   const values = [];
   let idx = 1;
 
+  if (search) {
+    conditions.push(`(p.no_nota ILIKE $${idx} OR pg.nama ILIKE $${idx})`);
+    values.push(`%${search}%`);
+    idx++;
+  }
   if (username) {
     conditions.push(`p.username = $${idx++}`);
     values.push(username);
