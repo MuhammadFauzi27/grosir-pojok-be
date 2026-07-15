@@ -738,12 +738,15 @@ components:
       properties:
         id_detail_jual:
           type: integer
+          example: 42
         no_nota_jual:
           type: string
         id_barang:
           type: integer
+          example: 7
         nama_barang:
           type: string
+          example: Indomie Goreng Dus
         nama_satuan:
           type: string
         jumlah_jual:
@@ -751,6 +754,14 @@ components:
         subtotal_jual:
           type: number
           format: double
+          example: 126000
+        no_nota:
+          type: string
+          example: TRX-20260701-001
+        jumlah_per_barang:
+          type: integer
+          example: 3
+      description: Satu baris item dalam nota penjualan
 
     PenjualanSummary:
       type: object
@@ -799,27 +810,3 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DetailPenjualan'
-
-    DetailPenjualan:
-      type: object
-      description: Satu baris item dalam nota penjualan
-      properties:
-        id_detail_jual:
-          type: integer
-          example: 42
-        no_nota:
-          type: string
-          example: TRX-20260701-001
-        id_barang:
-          type: integer
-          example: 7
-        nama_barang:
-          type: string
-          example: Indomie Goreng Dus
-        jumlah_per_barang:
-          type: integer
-          example: 3
-        subtotal_jual:
-          type: number
-          format: double
-          example: 126000
